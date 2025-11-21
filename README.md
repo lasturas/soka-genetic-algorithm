@@ -125,6 +125,52 @@ Setelah program selesai berjalan, hasil pengujian akan ditampilkan dan disimpan 
     <img width="1204" height="583" alt="image" src="https://github.com/user-attachments/assets/9a0686a2-9543-4184-87c4-afea4268c23e" />
 
 
+     **HASIL RUN 10 KALI**
+1.
+    ![WhatsApp Image 2025-11-21 at 09 38 49_a29ab677](https://github.com/user-attachments/assets/c2aebe98-f6d9-4f01-bd3f-b3cb1d0a000d)
+2.
+    ![WhatsApp Image 2025-11-21 at 09 39 05_d654c46e](https://github.com/user-attachments/assets/a702cc58-5752-479c-a0db-c9ab9e0ba38b)
+3.    
+    ![WhatsApp Image 2025-11-21 at 09 42 09_7dacb652](https://github.com/user-attachments/assets/ea6c52e3-f96c-44c4-a045-cc02dfd84ddb)
+4.    
+    ![WhatsApp Image 2025-11-21 at 09 43 06_80d765ad](https://github.com/user-attachments/assets/30b9247d-4061-4902-a192-53a0fb999932)
+5.    
+    ![WhatsApp Image 2025-11-21 at 09 44 32_f0e959bc](https://github.com/user-attachments/assets/4575cae5-0838-4ef7-9f0c-ffa0a8420f98)
+6.    
+    ![WhatsApp Image 2025-11-21 at 09 45 24_be872330](https://github.com/user-attachments/assets/d2a90970-9a60-43db-b951-90256c37de07)
+7.    
+    ![WhatsApp Image 2025-11-21 at 09 48 00_ee8bc4a1](https://github.com/user-attachments/assets/32d7e1c7-f819-4677-9da3-599699a73ce9)
+8.    
+    ![WhatsApp Image 2025-11-21 at 09 49 33_9321d281](https://github.com/user-attachments/assets/701f1d88-4b39-4e05-93eb-839722dd2004)
+9.    
+    ![WhatsApp Image 2025-11-21 at 09 51 10_6abc03c4](https://github.com/user-attachments/assets/8cec4a8a-38e5-42b9-a5a8-86cfaab34af4)
+10.   
+    ![WhatsApp Image 2025-11-21 at 09 52 56_9f6865e5](https://github.com/user-attachments/assets/16c6b602-6d6b-4abc-993f-bc1252b22ef4)
+
+    **HASIL RATA-RATA**
+
+```text
+--- Rata-Rata Hasil ---
+Makespan (Waktu Total) : 32.4925 detik
+Throughput : 0.6860 tugas/detik
+Total CPU Time : 276.9769 detik
+Total Wait Time : 49.1984 detik
+Average Start Time (rel) : 2.4853 detik
+Average Execution Time : 13.8489 detik
+Average Finish Time (rel) : 15.3337 detik
+Imbalance Degree : 1.4290
+Resource Utilization (CPU) : 55.1737%
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
