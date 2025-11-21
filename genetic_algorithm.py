@@ -2,134 +2,215 @@ import random
 import time
 import math
 
-# --- Parameter Konfigurasi GA ---
-POPULATION_SIZE = 150   # 1-100
-MAX_GENERATIONS = 300   # 1-200
-MUTATION_RATE = 0.05
+# -------------------------------------------------------
+#           PARAMETER KONFIGURASI GA
+# -------------------------------------------------------
+POPULATION_SIZE = 150
+MAX_GENERATIONS = 300
+MUTATION_RATE = 0.10
 CROSSOVER_RATE = 0.8
-TOURNAMENT_SIZE = 5
+TOURNAMENT_SIZE = 3
 ELITISM_COUNT = 2
 
+
+# =======================================================
+#                     CHROMOSOME
+# =======================================================
 class Chromosome:
     def __init__(self, gene):
-        self.gene = gene
-        self.fitness = float('inf')
+        self.gene = gene            # daftar VM index per task
+        self.fitness = float('inf') # makin kecil makin bagus
 
-def schedule(tasks, vms, iterations):
-    """
-    Fungsi utama GA yang dipanggil oleh scheduler.py.
-    Nama parameter disesuaikan dengan panggilan di scheduler.py (tasks, vms, iterations).
-    Parameter 'iterations' tidak digunakan di GA, tapi kita terima agar signature-nya cocok.
-    """
+
+# =======================================================
+#                    MAIN GA
+# =======================================================
+def schedule(tasks, vms, iterations=1):
     num_tasks = len(tasks)
     num_vms = len(vms)
 
     print("Memulai Algoritma Genetika...")
     start_time = time.time()
 
+    # 1) POPULASI AWAL
     population = initialize_population(num_tasks, num_vms)
-    best_overall_solution = None
-    best_overall_fitness = float('inf')
 
-    for generation in range(MAX_GENERATIONS):
+    best_overall = None
+    best_fitness = float('inf')
+
+    # ---------------------------------------------------
+    #                 LOOP EVOLUSI
+    # ---------------------------------------------------
+    for gen in range(MAX_GENERATIONS):
+
+        # Evaluasi setiap anggota
         evaluate_population(population, tasks, vms)
 
-        current_best = min(population, key=lambda chrom: chrom.fitness)
-        if current_best.fitness < best_overall_fitness:
-            best_overall_fitness = current_best.fitness
-            best_overall_solution = current_best
+        # Ambil terbaik generasi ini
+        current_best = min(population, key=lambda c: c.fitness)
 
-        if generation % 20 == 0:
-            print(f"Generasi-{generation} - Best Fitness (Makespan Perkiraan): {best_overall_fitness:.4f}s")
-        
-        new_population = []
-        population.sort(key=lambda chrom: chrom.fitness)
-        new_population.extend(population[:ELITISM_COUNT])
+        if current_best.fitness < best_fitness:
+            best_fitness = current_best.fitness
+            best_overall = current_best
+
+        if gen % 20 == 0:
+            print(f"Gen-{gen} | Best Fitness : {best_fitness:.6f}")
+
+        # ---------------------------------------------------
+        #             SELEKSI GENERASI BARU
+        # ---------------------------------------------------
+        population.sort(key=lambda c: c.fitness)
+        new_population = population[:ELITISM_COUNT]   # elitism
 
         while len(new_population) < POPULATION_SIZE:
-            parent1 = tournament_selection(population)
-            parent2 = tournament_selection(population)
 
+            # Tournament selection
+            p1 = tournament_selection(population)
+            p2 = tournament_selection(population)
+
+            # Crossover
             if random.random() < CROSSOVER_RATE:
-                child1_gene, child2_gene = crossover(parent1.gene, parent2.gene)
-                children_genes = [child1_gene, child2_gene]
+                c1, c2 = load_aware_crossover(p1.gene, p2.gene, tasks)
             else:
-                children_genes = [parent1.gene, parent2.gene]
+                c1, c2 = p1.gene, p2.gene
 
-            for gene in children_genes:
-                mutated_gene = mutate(gene, num_vms)
-                new_population.append(Chromosome(mutated_gene))
-                if len(new_population) >= POPULATION_SIZE:
-                    break
-        
+            # Mutasi
+            new_population.append(Chromosome(mutate(c1, num_vms)))
+            if len(new_population) < POPULATION_SIZE:
+                new_population.append(Chromosome(mutate(c2, num_vms)))
+
         population = new_population
 
+    # ---------------------------------------------------
+    #               GA SELESAI
+    # ---------------------------------------------------
     end_time = time.time()
-    print(f"Algoritma Genetika selesai dalam {end_time - start_time:.4f} detik.")
+    print(f"GA selesai dalam {end_time - start_time:.4f} detik.")
 
-    # Konversi hasil terbaik ke format yang dibutuhkan: {task.id: vm.name}
-    final_assignment = {}
-    if best_overall_solution:
-        for i, task in enumerate(tasks):
-            vm_index = best_overall_solution.gene[i]
-            final_assignment[task.id] = vms[vm_index].name
-    
-    return final_assignment
+    # Konversi hasil penjadwalan ke dictionary
+    final_result = {}
+    for i, task in enumerate(tasks):
+        vm_choice = best_overall.gene[i]
+        final_result[task.id] = vms[vm_choice].name
 
+    return final_result
+
+
+
+# =======================================================
+#                 POPULASI AWAL
+# =======================================================
 def initialize_population(num_tasks, num_vms):
-    return [Chromosome([random.randint(0, num_vms - 1) for _ in range(num_tasks)]) for _ in range(POPULATION_SIZE)]
+    population = []
 
+    # 1) Round-robin solution → agar mulai dari posisi cukup seimbang
+    rr = [(i % num_vms) for i in range(num_tasks)]
+    population.append(Chromosome(rr))
+
+    # 2) Sisanya random
+    for _ in range(POPULATION_SIZE - 1):
+        gene = [random.randint(0, num_vms - 1) for _ in range(num_tasks)]
+        population.append(Chromosome(gene))
+
+    return population
+
+
+
+# =======================================================
+#                EVALUASI POPULASI
+# =======================================================
 def evaluate_population(population, tasks, vms):
     for chrom in population:
         chrom.fitness = evaluate_solution(chrom.gene, tasks, vms)
 
-def evaluate_solution(solution_gene, tasks, vms):
-    """Fungsi Fitness yang menghitung perkiraan makespan."""
+
+
+# =======================================================
+#         FITNESS FUNCTION (versi stabil)
+# =======================================================
+def evaluate_solution(gene, tasks, vms):
     vm_loads = [0.0] * len(vms)
+
+    # Tambahkan beban tiap tugas ke VM tujuan
     for i, task in enumerate(tasks):
-        vm_index = solution_gene[i]
-        # Menggunakan cpu_load yang sudah dihitung sebelumnya di scheduler.py
-        vm_loads[vm_index] += task.cpu_load
-    
-    execution_times = [vm_loads[i] / vms[i].cpu_cores for i in range(len(vms))]
-    
-    # Hitung Makespan: waktu selesai dari VM yang paling lama bekerja
-    makespan = max(execution_times) if execution_times else 0
+        vm_loads[gene[i]] += task.cpu_load
 
-    # --- BAGIAN YANG PERLU DITAMBAHKAN ---
-    # Hitung Imbalance berdasarkan waktu eksekusi
-    if len(vms) > 0:
-        mean_exec_time = sum(execution_times) / len(vms)
-        # Variance adalah rata-rata dari kuadrat selisih setiap waktu dengan rata-ratanya
-        variance = sum([(t - mean_exec_time) ** 2 for t in execution_times]) / len(vms)
-        imbalance = math.sqrt(variance) # Imbalance di sini adalah standard deviation
-    else:
-        imbalance = 0
-    # ------------------------------------
-    
-    # Inilah baris return yang menggabungkan keduanya.
-    # Kamu bisa bereksperimen dengan bobot '2.0' ini.
-    return makespan + (imbalance * 100.0) 
+    # Execution time = total load / core VM
+    exec_times = [
+        vm_loads[i] / vms[i].cpu_cores for i in range(len(vms))
+    ]
+
+    makespan = max(exec_times)
+
+    # IMBALANCE = standard deviation
+    mean_exec = sum(exec_times) / len(exec_times)
+    variance = sum((t - mean_exec) ** 2 for t in exec_times) / len(exec_times)
+    imbalance = math.sqrt(variance)
+
+    # ---------------------------------------------------
+    #    NORMALISASI otomatis berdasar dataset
+    # ---------------------------------------------------
+    total_load = sum(task.cpu_load for task in tasks)
+
+    norm_makespan = makespan / 250.0
+    norm_imbalance = imbalance / 2.0
+
+    # ---------------------------------------------------
+    #          MULTI-OBJECTIVE BALANCING
+    # ---------------------------------------------------
+    W_MAKE = 0.30
+    W_IMBA = 0.70
+
+    fitness = W_MAKE * norm_makespan + W_IMBA * norm_imbalance
+    return fitness
 
 
+
+# =======================================================
+#               TOURNAMENT SELECTION
+# =======================================================
 def tournament_selection(population):
-    tournament = random.sample(population, TOURNAMENT_SIZE)
-    return min(tournament, key=lambda chrom: chrom.fitness)
+    contestants = random.sample(population, TOURNAMENT_SIZE)
+    return min(contestants, key=lambda c: c.fitness)
 
-def crossover(parent1_gene, parent2_gene):
-    size = len(parent1_gene)
-    if size <= 1: return parent1_gene, parent2_gene
-    
-    cx_point = random.randint(1, size - 1)
-    
-    child1_gene = parent1_gene[:cx_point] + parent2_gene[cx_point:]
-    child2_gene = parent2_gene[:cx_point] + parent1_gene[cx_point:]
-    
-    return child1_gene, child2_gene
 
+
+# =======================================================
+#           LOAD-AWARE CROSSOVER
+# =======================================================
+def load_aware_crossover(p1, p2, tasks):
+    size = len(p1)
+    if size <= 1:
+        return p1, p2
+
+    # Cari 20% tugas paling berat → jangan tukar
+    sorted_tasks = sorted(
+        enumerate(tasks),
+        key=lambda x: x[1].cpu_load,
+        reverse=True
+    )
+    heavy_count = max(1, size // 5)
+    heavy_indices = [idx for idx, _ in sorted_tasks[:heavy_count]]
+
+    c1 = p1[:]
+    c2 = p2[:]
+
+    for i in range(size):
+        if i in heavy_indices:
+            continue
+        if random.random() < 0.5:
+            c1[i], c2[i] = c2[i], c1[i]
+
+    return c1, c2
+
+
+
+# =======================================================
+#                     MUTATION
+# =======================================================
 def mutate(gene, num_vms):
-    mutated_gene = list(gene)
-    for i in range(len(mutated_gene)):
+    g = gene[:]
+    for i in range(len(g)):
         if random.random() < MUTATION_RATE:
-            mutated_gene[i] = random.randint(0, num_vms - 1)
-    return mutated_gene
+            g[i] = random.randint(0, num_vms - 1)
+    return g
